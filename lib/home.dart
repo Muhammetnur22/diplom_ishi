@@ -1,9 +1,12 @@
 import 'dart:developer';
+import 'dart:math' as math;
 
+import 'package:advance_pdf_viewer_fork/advance_pdf_viewer_fork.dart';
+import 'package:ebook_app/bloc/book_bloc.dart';
+import 'package:ebook_app/constants.dart';
 import 'package:flip_widget/flip_widget.dart';
 import 'package:flutter/material.dart';
-import 'package:pdfx/pdfx.dart';
-import 'dart:math' as math;
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 // import 'hor_turn.dart' as horT;
 
@@ -17,14 +20,28 @@ class BookGridView extends StatefulWidget {
 class _BookGridViewState extends State<BookGridView> {
   final books = [
     {
+      'img': 'assets/images/ene.png',
+      'book': AppConstants.alemPDf,
+      'name': "Enä tagzym – mukaddeslige tagzym"
+    },
+    {
       'img': 'assets/images/alem.jpeg',
-      'book': 'assets/book/alem.pdf',
+      'book': AppConstants.alemPDf,
+      'name': "Älem içre at gezer"
     },
     {
       'img': 'assets/images/dowlet.jpeg',
-      'book': 'assets/book/alem.pdf',
+      'book': AppConstants.dowletGushy,
+      'name': "\"Döwlet guşy\" romany"
+    },
+    {
+      'img': 'assets/images/at.jpeg',
+      'book': AppConstants.dowletGushy,
+      'name': "Atda wepa-da bar, sapa-da"
     },
   ];
+
+  final Key _key = const Key('unique_key');
 
   @override
   Widget build(BuildContext context) {
@@ -33,64 +50,79 @@ class _BookGridViewState extends State<BookGridView> {
         elevation: 0,
         backgroundColor: Colors.white,
         title: Text(
-          'Book list',
+          'Kitaplaryň sanawy',
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 fontSize: 18,
               ),
         ),
         centerTitle: false,
       ),
-      body: GridView.builder(
-        itemCount: books.length,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 1 / 1.8,
-        ),
-        itemBuilder: (context, index) {
-          final img = books[index]['img'];
-          final path = books[index]['book'];
-          return InkWell(
-            onTap: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (context) {
-                  return TestScreen(
-                    path: path ?? '',
-                  );
-                },
-              ));
-            },
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(flex: 3, child: Image.asset(img ?? '')),
-                  const SizedBox(
-                    height: 14,
-                  ),
-                  Expanded(
-                    child: Text(
-                      index == 1 ? 'Dowlet gusy romany' : 'Alem icre at gezer',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+      body: Padding(
+        padding: const EdgeInsets.all(4),
+        child: GridView.builder(
+          physics: const BouncingScrollPhysics(),
+          itemCount: books.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 5,
+            mainAxisSpacing: 5,
+            // mainAxisExtent: ,
+            childAspectRatio: 1 / 1.8,
+          ),
+          itemBuilder: (context, index) {
+            final img = books[index]['img'];
+            final path = books[index]['book'];
+            final title = books[index]['name'];
+            return InkWell(
+              onTap: () {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) {
+                    return TestScreen(
+                      path: path ?? '',
+                      title: title ?? '',
+                    );
+                  },
+                ));
+              },
+              child: Container(
+                decoration:
+                    BoxDecoration(border: Border.all(color: Colors.black12)),
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Image.asset(img ?? ''),
                     ),
-                  )
-                ],
+                    const SizedBox(
+                      height: 14,
+                    ),
+                    Expanded(
+                      child: Text(
+                        title ?? '',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                    )
+                  ],
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
 }
 
 class TestScreen extends StatefulWidget {
-  const TestScreen({super.key, required this.path});
+  const TestScreen({super.key, required this.path, required this.title});
 
   final String path;
+  final String title;
 
   @override
   State<TestScreen> createState() => _TestScreenState();
@@ -109,65 +141,65 @@ double _clampMin(double v) {
 }
 
 class PdfImg {
-  final PdfPageImage? img;
-  final GlobalKey<FlipWidgetState> flipKey;
+  final PDFPage? img;
+  GlobalKey<FlipWidgetState> flipKey;
+  bool isVisible;
 
-  PdfImg({this.img, required this.flipKey});
+  PdfImg({
+    this.img,
+    required this.flipKey,
+    this.isVisible = true,
+  });
 }
 
 class _TestScreenState extends State<TestScreen> {
-  // final GlobalKey<FlipWidgetState> _flipKey = GlobalKey();
+  final UniqueKey _key = UniqueKey();
 
   Offset _oldPosition = Offset.zero;
-  List<PdfImg> imgList = [];
-  bool isLoading = false;
-  bool isSuccess = false;
+
+  late BookBloc bloc;
+  // List<PdfImg> imgList = [];
+  // List<PdfImg> prevs = [];
+  // bool isLoading = false;
+  // bool isSuccess = false;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    getPageImage(context, widget.path);
+  void initState() {
+    super.initState();
+    bloc = BlocProvider.of<BookBloc>(context);
+    // if (bloc.state.pages == null) {
+    bloc.add(FetchInitialEvent(widget.path));
+    // }
   }
 
-  changeLoading() {
-    isLoading = !isLoading;
-    setState(() {});
+  @override
+  void dispose() {
+    super.dispose();
+    bloc.pages1.clear();
+    // bloc.disposed();
+
+    // clog(bloc.state.pages?.length);?
+    // bloc.dis
+
+    clog('DISPOSE');
+
+    // try {
+    //   _deleteCacheDir();
+    // } catch (ex) {
+    //   clog(ex);
+    // }
   }
 
-  Future<void>? getPageImage(BuildContext context, String path) async {
-    try {
-      changeLoading();
-      List<PdfImg> imgs = [];
-
-      final document = await PdfDocument.openAsset(path);
-      final pages = document.pagesCount;
-      for (var i = 1; i <= pages; i++) {
-        final page = await document.getPage(i);
-        final pageImage = await page.render(
-          width: page.width,
-          height: page.height,
-          format: PdfPageImageFormat.jpeg,
-        );
-        await page.close();
-        if (pageImage != null) {
-          final img =
-              PdfImg(flipKey: GlobalKey<FlipWidgetState>(), img: pageImage);
-          imgs = List.of(imgs)..add(img);
-        }
-      }
-      imgList = imgs.reversed.toList();
-      isSuccess = true;
-      changeLoading();
-
-      // setState(() {});
-
-      // return imgs;
-    } catch (ex) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('---- Error appeared $ex --- ')));
-      rethrow;
-    }
-  }
+  // Future<void> _deleteCacheDir() async {
+  //   final cacheDir = await getTemporaryDirectory();
+  //   if (cacheDir.existsSync()) {
+  //     cacheDir.deleteSync(recursive: true);
+  //   }
+  //   final appDir = await getApplicationSupportDirectory();
+  //   if (appDir.existsSync()) {
+  //     appDir.deleteSync(recursive: true);
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -176,76 +208,103 @@ class _TestScreenState extends State<TestScreen> {
     Size size = Size(width, height);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Book reader'),
+        elevation: 0,
+        title: Text(
+          widget.title,
+        ),
       ),
-      body: () {
-        if (isLoading) {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
-        }
-        if (isSuccess) {
+      body: BlocBuilder<BookBloc, BookState>(
+        builder: (context, state) {
+          if (state is LoadingState || state is BookInitial) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
+
+          if (state is LoadedFailure) {
+            return _ErrorPage(() {
+              bloc.add(FetchInitialEvent(widget.path));
+            });
+          }
+
+          final imgList = (state as LoadedState).pages;
+          // final current =
           return Stack(
-            children: [
-              ...imgList.map(
-                (img) => GestureDetector(
-                  onHorizontalDragStart: (details) {
-                    _oldPosition = details.globalPosition;
-                    img.flipKey.currentState?.startFlip();
-                  },
-                  onHorizontalDragUpdate: (details) {
-                    Offset off = details.globalPosition - _oldPosition;
-                    double tilt = 1 / _clampMin((-off.dy + 20) / 100);
-                    double percent = math.max(0, -off.dx / size.width * 1.4);
-                    percent = percent - percent / 2 * (1 - 1 / tilt);
-                    img.flipKey.currentState?.flip(percent, tilt);
-                    if (percent > .45) {
-                      // clog('Success to TURn');
-                      if (imgList.length >= 3) {
-                        // prev = List.from(prev)..add(img);
-                        imgList.removeWhere((e) => e == img);
-                      }
-                      percent = 0;
-                      setState(() {});
-                    }
-                  },
-                  onHorizontalDragEnd: (details) {
-                    img.flipKey.currentState?.stopFlip();
-                  },
-                  onHorizontalDragCancel: () {
-                    img.flipKey.currentState?.stopFlip();
-                  },
-                  child: Stack(
-                    children: [
-                      FlipWidget(
-                        key: img.flipKey,
-                        child: Image(
-                          image: MemoryImage(img.img!.bytes),
-                          height: MediaQuery.of(context).size.height,
-                        ),
+            key: _key,
+            children: List.generate(imgList?.length ?? 0, (index) {
+              final img = imgList![index];
+              final fKey = GlobalKey<FlipWidgetState>();
+
+              return GestureDetector(
+                // key: ,
+                onHorizontalDragStart: (details) {
+                  _oldPosition = details.globalPosition;
+                  fKey.currentState?.startFlip();
+                },
+                onHorizontalDragUpdate: (details) async {
+                  Offset off = details.globalPosition - _oldPosition;
+                  double tilt = 1 / _clampMin((-off.dy + 20) / 100);
+                  double percent = math.max(0, -off.dx / size.width * 1.4);
+                  percent = percent - percent / 2 * (1 - 1 / tilt);
+                  fKey.currentState?.flip(percent, tilt);
+                  if (percent > .45) {
+                    //  if(state.pages.isEmpty)
+                    bloc.add(TurnToNext(img));
+                    percent = 0;
+                    bloc.add(FetchEvent(widget.path));
+                  }
+                },
+                onHorizontalDragEnd: (details) {
+                  fKey.currentState?.stopFlip();
+                },
+                onHorizontalDragCancel: () {
+                  fKey.currentState?.stopFlip();
+                },
+                child: Stack(
+                  children: [
+                    Visibility(
+                      visible: img.isVisible,
+                      child: FlipWidget(
+                        key: fKey,
+                        child: img.img,
                       ),
-                      Positioned(
-                        bottom: 0,
-                        child: ElevatedButton(
-                          onPressed: () {},
-                          child: const Icon(Icons.arrow_back_ios),
-                        ),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          bloc.add(TurnToPrev(img));
+                        },
+                        child: const Icon(Icons.arrow_back_ios),
                       ),
-                      Positioned(
-                        top: 5,
-                        right: 15,
-                        child: Container(
-                            color: Colors.red,
-                            child: Text('${imgList.indexOf(img) + 1}')),
-                      ),
-                    ],
-                  ),
+                    ),
+                    // Positioned(
+                    //   bottom: 5,
+                    //   right: 15,
+                    //   child: Container(
+                    //     width: 30,
+                    //     height: 30,
+                    //     alignment: Alignment.center,
+                    //     decoration: const BoxDecoration(
+                    //       shape: BoxShape.circle,
+                    //       color: Colors.blue,
+                    //     ),
+                    //     child: Text(
+                    //       "${state.currentPage ?? 1}",
+                    //       style: Theme.of(context)
+                    //           .textTheme
+                    //           .bodyLarge
+                    //           ?.copyWith(color: Colors.white),
+                    //     ),
+                    //   ),
+                    // ),
+                  ],
                 ),
-              ),
-            ],
+              );
+            }),
           );
-        }
-      }(),
+        },
+      ),
     );
   }
 
@@ -270,6 +329,52 @@ class _TestScreenState extends State<TestScreen> {
   //     ),
   //   );
   // }
+}
+
+class _ErrorPage extends StatelessWidget {
+  const _ErrorPage(this.onRefresh);
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      backgroundColor: Colors.black,
+      onRefresh: () async {
+        onRefresh.call();
+      },
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height - 120,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Center(
+                child: Image.asset('assets/error.png'),
+              ),
+              const SizedBox(
+                height: 24,
+              ),
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Center(
+                  child: FittedBox(
+                    child: Text(
+                      'Internet näsazlygy, gaýtadan synanyşyň!',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyLarge
+                          ?.copyWith(fontSize: 26),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 void clog<T>(T v) {
